@@ -1,6 +1,8 @@
 import torch
 import numpy as np
+np.set_printoptions(threshold=np.nan)
 from multiprocessing import Pool
+import re
 from tqdm import tqdm
 
 import os
@@ -17,7 +19,7 @@ def get_embeddings(mname):
     tokenizer = BertTokenizer.from_pretrained(mname)
 
     print("# Construct vocab")
-    vocab = np.array([token for token in tokenizer.vocab])
+    vocab = [token for token in tokenizer.vocab]
 
     print("# Load pre-trained model")
     model = BertModel.from_pretrained(mname)
@@ -27,20 +29,26 @@ def get_embeddings(mname):
     emb = emb.numpy()
 
     print("# Write")
-    fname = "{}.{}.{}d.npz".format(mname, len(vocab), emb.shape[-1])
-    with open(fname, 'wb') as fout:
-        np.savez(fout, vocab, emb)
+    with open("{}.{}.{}d.vec".format(mname, len(vocab), emb.shape[-1]), "w") as fout:
+        fout.write("{} {}\n".format(len(vocab), emb.shape[-1]))
+        assert len(vocab)==len(emb), "The number of vocab and embeddings MUST be identical."
+        for token, e in zip(vocab, emb):
+            e = np.array2string(e, max_line_width=np.inf)[1:-1]
+            e = re.sub("[ ]+", " ", e)
+            fout.write("{} {}\n".format(token, e))
 
 if __name__ == "__main__":
-    mnames = ("bert-base-uncased",
+    mnames = (
+              "bert-base-uncased",
               "bert-large-uncased",
               "bert-base-cased",
               "bert-large-cased",
               "bert-base-multilingual-cased",
               "bert-base-multilingual-uncased",
-              "bert-base-chinese")
+              "bert-base-chinese"
+             )
 
-    p = Pool(4)
+    p = Pool(16)
     with tqdm(total=len(mnames)) as pbar:
         for _ in tqdm(p.imap(get_embeddings, mnames)):
             pbar.update()
